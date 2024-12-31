@@ -1,0 +1,52 @@
+﻿@page "/"
+@using OpenTracker.Data.Models
+@using OpenTracker.Data.Services
+@inject Scryfall Scryfall
+
+
+@rendermode InteractiveServer
+
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+
+<div>
+    <InputText class="form-control" @bind-Value="textInput"></InputText>
+    <button @onclick="SearchCards">Search</button>
+</div>
+
+<div class="CardViewer">
+    @if(ReturnedCards is not null){
+        @foreach (var card in ReturnedCards)
+        {
+            <div class="card">
+                <h6>@card.Name - @card.Price</h6>
+                <a target="_blank" href="@card.CardURL">
+                    <img src="@card.ImageURL" alt="@card.Name" />
+                </a>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    public string textInput { get; set; }
+    List<CardObject> ReturnedCards { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        ReturnedCards = new List<CardObject>();
+    }
+
+    private async Task SearchCards()
+    {
+
+        ReturnedCards = await Scryfall.SearchForCardAsync(textInput);
+        StateHasChanged();
+
+    }
+}
