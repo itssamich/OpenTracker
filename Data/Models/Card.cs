@@ -3,10 +3,10 @@ using System.ComponentModel.DataAnnotations;
 
 namespace OpenTracker.Data.Models
 {
-    public class CardObject
+    public class Card
     {
         [Key]
-        public int Id {  get ; set; }
+        public int CardId {  get ; set; }
 
         [Required]
         public required string Name { get; set; }
@@ -24,5 +24,11 @@ namespace OpenTracker.Data.Models
 
         [Required]
         public required DateTime LastUpdated { get; set; } = DateTime.Now;
+
+        [Required]
+
+        public required DateTime DateCreated { get; set; } = DateTime.Now;
+
+        public ICollection<Session> Sessions { get; set; } = new List<Session>();
     }
 }

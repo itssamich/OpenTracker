@@ -16,8 +16,10 @@ namespace OpenTracker.Data.Services
             _httpClient = httpClient;
         }
 
-        public async Task<List<CardObject>> SearchForCardAsync(string query)
+        public async Task<List<Card>> SearchForCardAsync(string query)
         {
+
+            //TODO: Check to see if requested card already exists in "cached" database and the time since last updated is greater than a week
 
             var baseURL = $"https://api.scryfall.com/cards/search?q=name%3A{query}";
 
@@ -28,7 +30,7 @@ namespace OpenTracker.Data.Services
 
             if (response.IsSuccessStatusCode)
             {
-                List<CardObject> ReturnedCards = new List<CardObject>();
+                List<Card> ReturnedCards = new List<Card>();
                 var jsonString = await response.Content.ReadAsStringAsync();
 
                 using JsonDocument jsonDocument = JsonDocument.Parse(jsonString);
@@ -37,14 +39,15 @@ namespace OpenTracker.Data.Services
                 {
                     foreach (JsonElement card in dataArray.EnumerateArray())
                     {
-                        ReturnedCards.Add(new CardObject
+                        ReturnedCards.Add(new Card
                         {
                             Name = card.GetProperty("name").GetString(),
                             OracleId = card.GetProperty("oracle_id").GetString(),
                             ImageURL = card.GetProperty("image_uris").GetProperty("small").GetString(),
                             CardURL = card.GetProperty("scryfall_uri").GetString(),
-                            Price =  Double.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out double value) ? value : 0.00,
-                            LastUpdated = DateTime.Now
+                            Price = Double.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out double value) ? value : 0.00,
+                            LastUpdated = DateTime.Now,
+                            DateCreated = DateTime.Now
                         });
                     }
                 }
@@ -60,11 +63,5 @@ namespace OpenTracker.Data.Services
             }
         }
 
-    }
-    public class CardSearchResult
-    {
-        public List<CardObject> Data { get; set; }
-        public int TotalCount { get; set; }
-        public bool HasMore { get; set; }
     }
 }

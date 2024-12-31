@@ -1,18 +1,17 @@
 ﻿@page "/"
+@using Microsoft.EntityFrameworkCore
+@using OpenTracker.Data
 @using OpenTracker.Data.Models
 @using OpenTracker.Data.Services
+@using System.Security.Claims
 @inject Scryfall Scryfall
-
-
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @rendermode InteractiveServer
 
 
 <PageTitle>Home</PageTitle>
 
-<h1>Hello, world!</h1>
-
-Welcome to your new app.
-
+<button class="btn btn-primary" @onclick="CreateSession">New Session</button>
 
 <div>
     <InputText class="form-control" @bind-Value="textInput"></InputText>
@@ -35,11 +34,35 @@ Welcome to your new app.
 
 @code {
     public string textInput { get; set; }
-    List<CardObject> ReturnedCards { get; set; }
+    List<Card> ReturnedCards { get; set; }
+    public bool SessionActive { get; set; }
+    public Session UnclosedSession { get; set; }
+    private ApplicationUser ActiveUser { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? authenticationState { get; set; }
 
     protected override async Task OnInitializedAsync()
     {
-        ReturnedCards = new List<CardObject>();
+
+        if (authenticationState is not null)
+        {
+            var authState = await authenticationState;
+            var user = authState?.User;
+
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            ActiveUser = await context.Users.Where(u => u.UserName == user.Identity.Name).FirstOrDefaultAsync();
+
+            if(ActiveUser is not null){
+                //TODO: Find most recent session and check if it has a closed date, if not then set it as UnclosedSession
+            }
+
+        }
+
+
+        SessionActive = false;
+        ReturnedCards = new List<Card>();
+
     }
 
     private async Task SearchCards()
@@ -48,5 +71,24 @@ Welcome to your new app.
         ReturnedCards = await Scryfall.SearchForCardAsync(textInput);
         StateHasChanged();
 
+    }
+
+    private async void CreateSession()
+    {
+        if(UnclosedSession is not null){
+            //TODO: Popup warning that this will close a previous session but that the user can view previous sessions from their profile
+        }
+        else{
+            using var context = await DbContextFactory.CreateDbContextAsync();
+
+            var NewSession = new Session
+                {
+                    SessionOwnerId = ActiveUser.Id,
+                    SessionStarted = DateTime.Now,
+                    LastUpdated = DateTime.Now
+                };
+
+            //TODO: Figure out if I want to piggy back off of UnclosedSession to store the current session. Probably do, not many reasons not to but...
+        }
     }
 }
