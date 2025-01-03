@@ -1,0 +1,83 @@
+﻿@using Microsoft.AspNetCore.Authorization
+@using Microsoft.EntityFrameworkCore
+@using OpenTracker.Components.Layout
+@using OpenTracker.Data
+@using Microsoft.EntityFrameworkCore
+@using OpenTracker.Data
+@using OpenTracker.Data.Models
+@using OpenTracker.Data.Services
+@using System.Security.Claims
+@inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IJSRuntime JS
+@layout BlankLayout
+@attribute [Authorize]
+
+@page "/report/{sessionId}"
+
+
+<AuthorizeView>
+    <Authorized>
+        @if (ActiveSession is not null)
+        {
+            <h3>@ActiveSession.SessionName - $@ActiveSession.TotalPrice</h3>
+            <div class="CardContainer">
+                @if (CardsInSession is not null)
+                {
+                    @foreach (var card in CardsInSession)
+                    {
+                        <span>@card.Value @card.Key.Name</span>
+                        <br />
+                    }
+                }
+            </div>
+
+        }
+
+    </Authorized>
+    <NotAuthorized>
+
+    </NotAuthorized>
+
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public string SessionId { get; set; }
+    List<CardSession> CardSessionUnion = new List<CardSession>();
+    public Session ActiveSession { get; set; }
+    Dictionary<Card, int> CardsInSession { get; set; }
+    private ApplicationUser ActiveUser { get; set; }
+
+    [CascadingParameter]
+    private Task<AuthenticationState>? authenticationState { get; set; }
+
+    protected async override Task OnParametersSetAsync()
+    {
+        if (authenticationState is not null)
+        {
+            var authState = await authenticationState;
+            var user = authState?.User;
+
+            using var context = await DbContextFactory.CreateDbContextAsync();
+            ActiveUser = await context.Users.Where(u => u.UserName == user.Identity.Name).FirstOrDefaultAsync();
+
+            if (ActiveUser is not null)
+            {
+                ActiveSession = await context.Sessions.Where(s => s.SessionOwnerId == ActiveUser.Id && s.SessionId == Guid.Parse(SessionId)).FirstOrDefaultAsync();
+
+                if(ActiveSession is null){
+                    await JS.InvokeVoidAsync("alert", "No valid report found.");
+                    return;
+                    //TODO: Ideally this closes the newly created tab
+                }
+                CardSessionUnion = await context.CardSessions.Where(s => s.SessionId == ActiveSession.SessionId).Include(c => c.Card).ToListAsync();
+                CardsInSession = new Dictionary<Card, int>();
+                foreach (var card in CardSessionUnion)
+                {
+                    CardsInSession.Add(card.Card, card.CardQuantity);
+                }
+            }
+        }
+
+    }
+}

@@ -33,14 +33,16 @@ namespace OpenTracker.Data.Services
 
             using var dbContext = await _context.CreateDbContextAsync();
 
-            CardData = await dbContext.Cards.Where(c => c.Name == query).FirstOrDefaultAsync();
 
-            if (CardData != null)
-            {
-                //TODO: Using ORACLEID, pull the cards data and update the price and last updated value
-                ReturnedCards.Add(CardData);
-                return ReturnedCards;
-            }
+            //This section can be moved to the addcardtosession function as the query name will rarely be the exact card name
+            //CardData = await dbContext.Cards.Where(c => c.Name == query).FirstOrDefaultAsync();
+
+            //if (CardData != null)
+            //{
+            //    //TODO: Using ORACLEID, pull the cards data and update the price and last updated value
+            //    ReturnedCards.Add(CardData);
+            //    return ReturnedCards;
+            //}
 
             var baseURL = $"https://api.scryfall.com/cards/search?q=name%3A{query}";
 
@@ -48,6 +50,8 @@ namespace OpenTracker.Data.Services
             _httpClient.DefaultRequestHeaders.Accept.ParseAdd("*/*");
 
             var response = await _httpClient.GetAsync(baseURL);
+
+            //Handle Errors and responses properly
 
             if (response.IsSuccessStatusCode)
             {
@@ -60,31 +64,66 @@ namespace OpenTracker.Data.Services
                 {
                     foreach (JsonElement card in dataArray.EnumerateArray())
                     {
-                        Card NewCard = new Card
+                        if (card.GetProperty("type_line").GetString().Contains("//")){
+                            //TODO: This is a flipcard catch, I only want to show the front side
+                        }
+                        else
                         {
-                            Name = card.GetProperty("name").GetString(),
-                            OracleId = card.GetProperty("oracle_id").GetString(),
-                            SetName = card.GetProperty("set").GetString(),
-                            SetNumber = int.TryParse(card.GetProperty("collector_number").ToString(), out int setNum) ? setNum : 000,
-                            ImageURL = card.GetProperty("image_uris").GetProperty("small").GetString(),
-                            CardURL = card.GetProperty("scryfall_uri").GetString(),
-                            Price = Decimal.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out Decimal value) ? value : 0,
-                            LastUpdated = DateTime.Now,
-                            DateCreated = DateTime.Now
-                        };
-                        ReturnedCards.Add(NewCard);
-                        dbContext.Cards.Add(NewCard);
+                            Card NewCard = new Card
+                            {
+                                Name = card.GetProperty("name").GetString(),
+                                OracleId = card.GetProperty("oracle_id").GetString(),
+                                SetName = card.GetProperty("set").GetString(),
+                                SetNumber = int.TryParse(card.GetProperty("collector_number").ToString(), out int setNum) ? setNum : 000,
+                                ImageURL = card.GetProperty("image_uris").GetProperty("small").GetString(),
+                                CardURL = card.GetProperty("scryfall_uri").GetString(),
+                                Price = Decimal.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out Decimal value) ? value : 0,
+                                LastUpdated = DateTime.Now,
+                                DateCreated = DateTime.Now
+                            };
+
+
+                            Card ExistingCard;
+
+                            ExistingCard = await dbContext.Cards.Where(c => c.OracleId == NewCard.OracleId).FirstOrDefaultAsync();
+
+                            if (ExistingCard is not null)
+                            {
+                                if (ExistingCard.LastUpdated < DateTime.Now.AddDays(-14))
+                                {
+                                    ExistingCard.Price = NewCard.Price;
+                                    ExistingCard.LastUpdated = DateTime.Now;
+                                    dbContext.Update(ExistingCard);
+                                }
+                                ReturnedCards.Add(ExistingCard);
+                            }
+                            else
+                            {
+                                dbContext.Cards.Add(NewCard);
+                                ReturnedCards.Add(NewCard);
+                            }
+
+                            await dbContext.SaveChangesAsync();
+                        }
+                        
                     }
                 }
-
-                await dbContext.SaveChangesAsync();
+                else
+                {
+                    //TODO: If query fails, present any cards with similar name in DB
+                    ReturnedCards = await dbContext.Cards.Where(c => c.Name.Contains(query)).ToListAsync();
+                }
                 // Return the list of cards
                 return ReturnedCards;
             }
             else
             {
                 // Handle error here
-                throw new HttpRequestException("Failed to fetch data from Scryfall API");
+                //throw new HttpRequestException("Failed to fetch data from Scryfall API");
+
+                ReturnedCards = await dbContext.Cards.Where(c => c.Name.Contains(query)).ToListAsync();
+
+                return ReturnedCards;
             }
         }
 
