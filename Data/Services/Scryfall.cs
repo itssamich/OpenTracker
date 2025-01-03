@@ -4,6 +4,11 @@ using System.Text.Json;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http.Headers;
 using OpenTracker.Data.Models;
+using System.Numerics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
+
+
 
 namespace OpenTracker.Data.Services
 {
@@ -11,15 +16,31 @@ namespace OpenTracker.Data.Services
     {
         private readonly HttpClient _httpClient;
 
-        public Scryfall(HttpClient httpClient)
+        private readonly IDbContextFactory<ApplicationDbContext> _context;
+
+        public Scryfall(HttpClient httpClient, IDbContextFactory<ApplicationDbContext> context)
         {
             _httpClient = httpClient;
+            _context = context;
         }
 
         public async Task<List<Card>> SearchForCardAsync(string query)
         {
-
+            
             //TODO: Check to see if requested card already exists in "cached" database and the time since last updated is greater than a week
+            Card CardData;
+            List<Card> ReturnedCards = new List<Card>();
+
+            using var dbContext = await _context.CreateDbContextAsync();
+
+            CardData = await dbContext.Cards.Where(c => c.Name == query).FirstOrDefaultAsync();
+
+            if (CardData != null)
+            {
+                //TODO: Using ORACLEID, pull the cards data and update the price and last updated value
+                ReturnedCards.Add(CardData);
+                return ReturnedCards;
+            }
 
             var baseURL = $"https://api.scryfall.com/cards/search?q=name%3A{query}";
 
@@ -30,7 +51,7 @@ namespace OpenTracker.Data.Services
 
             if (response.IsSuccessStatusCode)
             {
-                List<Card> ReturnedCards = new List<Card>();
+
                 var jsonString = await response.Content.ReadAsStringAsync();
 
                 using JsonDocument jsonDocument = JsonDocument.Parse(jsonString);
@@ -39,20 +60,24 @@ namespace OpenTracker.Data.Services
                 {
                     foreach (JsonElement card in dataArray.EnumerateArray())
                     {
-                        ReturnedCards.Add(new Card
+                        Card NewCard = new Card
                         {
                             Name = card.GetProperty("name").GetString(),
                             OracleId = card.GetProperty("oracle_id").GetString(),
+                            SetName = card.GetProperty("set").GetString(),
+                            SetNumber = int.TryParse(card.GetProperty("collector_number").ToString(), out int setNum) ? setNum : 000,
                             ImageURL = card.GetProperty("image_uris").GetProperty("small").GetString(),
                             CardURL = card.GetProperty("scryfall_uri").GetString(),
-                            Price = Double.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out double value) ? value : 0.00,
+                            Price = Decimal.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out Decimal value) ? value : 0,
                             LastUpdated = DateTime.Now,
                             DateCreated = DateTime.Now
-                        });
+                        };
+                        ReturnedCards.Add(NewCard);
+                        dbContext.Cards.Add(NewCard);
                     }
                 }
 
-
+                await dbContext.SaveChangesAsync();
                 // Return the list of cards
                 return ReturnedCards;
             }

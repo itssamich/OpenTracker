@@ -9,14 +9,16 @@ namespace OpenTracker.Data.Models
         [Key]
         public Guid SessionId { get; set; }
 
+        [Required]
+        public required string SessionName { get; set; }
 
-        [Precision(5, 2)]
+        [Precision(8, 2)]
         public decimal TotalPrice { get; set; } = 0;
+
 
         [ForeignKey(nameof(ApplicationUser))]
         public required string SessionOwnerId { get; set; }
-
-        public ApplicationUser ApplicationUser { get; set; }
+        public ApplicationUser? ApplicationUser { get; set; }
 
         [Required]
         public required DateTime LastUpdated { get; set; } = DateTime.Now;
@@ -26,6 +28,7 @@ namespace OpenTracker.Data.Models
 
         public DateTime? SessionClosed { get; set; }
 
-        public ICollection<Card> Cards { get; set; } = new List<Card>();
+
+
     }
 }

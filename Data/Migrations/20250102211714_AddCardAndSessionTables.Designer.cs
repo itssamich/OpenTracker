@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OpenTracker.Data;
 
@@ -10,12 +11,29 @@ using OpenTracker.Data;
 namespace OpenTracker.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250102211714_AddCardAndSessionTables")]
+    partial class AddCardAndSessionTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
+
+            modelBuilder.Entity("CardSession", b =>
+                {
+                    b.Property<int>("CardsCardId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("SessionsSessionId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("CardsCardId", "SessionsSessionId");
+
+                    b.HasIndex("SessionsSessionId");
+
+                    b.ToTable("CardSession");
+                });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -245,9 +263,8 @@ namespace OpenTracker.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
-                    b.Property<decimal?>("Price")
-                        .HasPrecision(8, 2)
-                        .HasColumnType("TEXT");
+                    b.Property<double?>("Price")
+                        .HasColumnType("REAL");
 
                     b.Property<string>("SetName")
                         .IsRequired()
@@ -311,6 +328,21 @@ namespace OpenTracker.Migrations
                     b.HasIndex("SessionOwnerId");
 
                     b.ToTable("Sessions");
+                });
+
+            modelBuilder.Entity("CardSession", b =>
+                {
+                    b.HasOne("OpenTracker.Data.Models.Card", null)
+                        .WithMany()
+                        .HasForeignKey("CardsCardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OpenTracker.Data.Models.Session", null)
+                        .WithMany()
+                        .HasForeignKey("SessionsSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

@@ -6,16 +6,58 @@
 @using System.Security.Claims
 @inject Scryfall Scryfall
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject IJSRuntime JS
+
+
 @rendermode InteractiveServer
 
 
 <PageTitle>Home</PageTitle>
 
-<button class="btn btn-primary" @onclick="CreateSession">New Session</button>
+@if(ActiveUser is not null){
+    <button class="btn btn-primary" @onclick="CreateSession">New Session</button>
+}
 
 <div>
-    <InputText class="form-control" @bind-Value="textInput"></InputText>
+    <InputText class="form-control" @bind-Value="TextInput"></InputText>
     <button @onclick="SearchCards">Search</button>
+</div>
+
+<div class="SessionContainer container">
+    @if(UserSessions is not null){
+        <div class="SessionList">
+            <ul>
+                @foreach (var session in UserSessions)
+                {
+                    <li class="btn btn-primary" @onclick="() => ChangeSession(session)">@session.SessionName</li>
+                }
+            </ul>
+
+        </div>
+    }
+
+    @if (ActiveSession is not null){
+        <h3>@ActiveSession.SessionName</h3>
+        <div class="CardContainer">
+            @if(CardsInSession is not null){
+                @foreach (var card in CardsInSession)
+                {
+                    <div class="card" onclick="">
+                        <h5>@card.Key.Name- @card.Key.Price</h5>
+                        <a target="_blank" href="@card.Key.CardURL">
+                            <img src="@card.Key.ImageURL" alt="@card.Key.Name" />
+                        </a>
+                        <div class="cardQuantity">
+                            <button class="btn btn-danger" @onclick="() => SubtractCardToSession(card.Key)">-</button>
+                            <h6>@card.Value</h6>
+                            <button class="btn btn-success" @onclick="() => AddCardToSession(card.Key)">+</button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+    }
 </div>
 
 <div class="CardViewer">
@@ -27,17 +69,21 @@
                 <a target="_blank" href="@card.CardURL">
                     <img src="@card.ImageURL" alt="@card.Name" />
                 </a>
+                <button class="btn btn-primary" @onclick="() => AddCardToSession(card)">Add</button>
             </div>
         }
     }
 </div>
 
 @code {
-    public string textInput { get; set; }
+    public string TextInput { get; set; }
     List<Card> ReturnedCards { get; set; }
+    Dictionary<Card, int> CardsInSession { get; set; }
+    List<Session> UserSessions { get; set; }
     public bool SessionActive { get; set; }
-    public Session UnclosedSession { get; set; }
+    public Session ActiveSession { get; set; }
     private ApplicationUser ActiveUser { get; set; }
+    List<CardSession> CardSessionUnion = new List<CardSession>();
 
     [CascadingParameter]
     private Task<AuthenticationState>? authenticationState { get; set; }
@@ -54,7 +100,21 @@
             ActiveUser = await context.Users.Where(u => u.UserName == user.Identity.Name).FirstOrDefaultAsync();
 
             if(ActiveUser is not null){
-                //TODO: Find most recent session and check if it has a closed date, if not then set it as UnclosedSession
+                //TODO: Find most recent session and check if it has a closed date, if not then set it as ActiveSession
+                UserSessions = await context.Sessions.Where(u => u.SessionOwnerId == ActiveUser.Id).OrderBy(s => s.LastUpdated).ToListAsync();
+                // if (UserSessions is not null)
+                // {
+                //     bool MessagePrompt;
+
+                //     MessagePrompt = await JS.InvokeAsync<bool>("confirm", "Would you like load the previous session?");
+
+                //     if (MessagePrompt)
+                //     {
+                //         ActiveSession = UserSessions.Last();
+                //     }
+
+                // }
+
             }
 
         }
@@ -68,27 +128,93 @@
     private async Task SearchCards()
     {
 
-        ReturnedCards = await Scryfall.SearchForCardAsync(textInput);
+        ReturnedCards = await Scryfall.SearchForCardAsync(TextInput);
         StateHasChanged();
 
     }
 
+    private async void ChangeSession(Session session)
+    {
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        ActiveSession = session;
+
+        CardSessionUnion = await context.CardSessions.Where(s => s.SessionId == session.SessionId).Include(c => c.Card).ToListAsync();
+        CardsInSession = new Dictionary<Card, int>();
+        foreach (var card in CardSessionUnion)
+        {
+            CardsInSession.Add(card.Card, card.CardQuantity);
+        }
+
+    }
+
+    private async void AddCardToSession(Card card)
+    {
+
+        using var context = await DbContextFactory.CreateDbContextAsync();
+
+        //card = await context.Cards.Where(c => c.CardId == card.CardId).FirstOrDefaultAsync();
+
+        int quantity = 0;
+        if (CardsInSession.TryGetValue(card, out quantity)){
+            var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
+            ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
+
+            cardSession.CardQuantity += 1;
+
+            context.Update(cardSession);
+            context.Update(ActiveSession);
+        }
+        else{
+            CardSession NewCardSession = new CardSession(){
+                CardId = card.CardId,
+                CardQuantity = 1,
+                SessionId = ActiveSession.SessionId
+            };
+            context.CardSessions.Add(NewCardSession);
+            ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
+            context.Update(ActiveSession);
+        }
+
+        await context.SaveChangesAsync();
+        StateHasChanged();
+        
+    }
+
+    private async void SubtractCardToSession(Card card){
+        int quantity = 0;
+        if (CardsInSession.TryGetValue(card, out quantity))
+        {
+            if(quantity <= 1){
+                //TODO: Remove card from dictionary and session
+            }
+            ActiveSession.TotalPrice -= card.Price.Value >= 0 ? card.Price.Value : 0;
+        }
+    }
+
     private async void CreateSession()
     {
-        if(UnclosedSession is not null){
+        if(ActiveSession is not null){
             //TODO: Popup warning that this will close a previous session but that the user can view previous sessions from their profile
         }
         else{
             using var context = await DbContextFactory.CreateDbContextAsync();
+            string SessionName = "";
+
+            SessionName = await JS.InvokeAsync<String>("prompt", "Would you like to add a name?");
 
             var NewSession = new Session
                 {
                     SessionOwnerId = ActiveUser.Id,
+                    SessionName = SessionName != "" ? SessionName : $"{DateTime.Now} Session",
                     SessionStarted = DateTime.Now,
                     LastUpdated = DateTime.Now
                 };
 
-            //TODO: Figure out if I want to piggy back off of UnclosedSession to store the current session. Probably do, not many reasons not to but...
+            context.Sessions.Add(NewSession);
+            await context.SaveChangesAsync();
+            //TODO: Figure out if I want to piggy back off of ActiveSession to store the current session. Probably do, not many reasons not to but...
+
+            ChangeSession(NewSession);
         }
     }
 }

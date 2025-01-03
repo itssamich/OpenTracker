@@ -6,6 +6,8 @@ namespace OpenTracker.Data;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : IdentityDbContext<ApplicationUser>(options)
 {
-    //public DbSet<Card> Cards { get; set; }
-    //public DbSet<Session> Sessions {get; set; }
+    public DbSet<Card> Cards { get; set; }
+    public DbSet<Session> Sessions {get; set; }
+
+    public DbSet<CardSession> CardSessions { get; set; }
 }
