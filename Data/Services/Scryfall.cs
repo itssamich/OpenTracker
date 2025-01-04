@@ -44,6 +44,9 @@ namespace OpenTracker.Data.Services
             //    return ReturnedCards;
             //}
 
+
+            //To find all artworks of a specific card change the q=name to q=@@name
+            //to find all versions of a speicifc card change teh q=name to q=++name
             var baseURL = $"https://api.scryfall.com/cards/search?q=name%3A{query}";
 
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("OpenTracker/1.0");

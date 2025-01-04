@@ -2,7 +2,7 @@
 <div class="modal-overlay" @onclick="CloseModal" style="display: @(IsVisible ? "block" : "none")">
     <div class="modal fade @(IsVisible ? "show d-block" : "d-none")" tabindex="-1" role="dialog">
         <div class="modal-dialog" role="document">
-            <div class="modal-content">
+            <div class="modal-content" @onclick:stopPropagation="true">
                 <div class="modal-header">
                     <h5 class="modal-title">@Title</h5>
                     <button type="button" class="btn-close" @onclick="CloseModal" aria-label="Close"></button>
@@ -10,24 +10,24 @@
                 <div class="modal-body">
                     @if (Data is not null)
                     {
-                        @foreach (var card in Data)
-                        {
-                            <div class="card">
-                                <h6>@card.Name - $@card.Price</h6>
-                                <a target="_blank" href="@card.CardURL">
-                                    <img src="@card.ImageURL" alt="@card.Name" />
-                                </a>
-                                <button class="btn btn-primary" @onclick="() => AddCard(card)">Add</button>
-                            </div>
-                        }
+                        <div class="CardContainer">
+                            @foreach (var card in Data)
+                            {
+                                <div class="ModalCard" >
+                                    <h6>@card.Name</h6>
+                                    <span>$@card.Price | @card.SetName-@card.SetNumber</span>
+                                    <a target="_blank" href="@card.CardURL">
+                                        <img src="@card.ImageURL" alt="@card.Name" />
+                                    </a>
+                                    <button class="btn btn-primary" @onclick="() => AddCard(card)">Add</button>
+                                </div>
+                            }
+                        </div>
                     }
                     else
                     {
                         <p>Loading...</p>
                     }
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
                 </div>
             </div>
         </div>

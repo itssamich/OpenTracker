@@ -51,8 +51,11 @@
     @if (ActiveSession is not null){
         <h3>@ActiveSession.SessionName - $@ActiveSession.TotalPrice</h3>
         <div>
-            <InputText class="form-control" @bind-Value="TextInput"></InputText>
-            <button @onclick="SearchCards">Search</button>
+            <form @onsubmit="SearchCards" @onsubmit:preventDefault="true">
+                <InputText class="form-control" @bind-Value="TextInput"></InputText>
+                <button type="submit">Search</button>
+            </form>
+
         </div>
         <div class="CardContainer" style="display: flex; flex-wrap: wrap; gap: 10px">
             @if(CardsInSession is not null){
