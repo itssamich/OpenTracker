@@ -1,0 +1,66 @@
+﻿@using OpenTracker.Data.Models
+<div class="modal-overlay" @onclick="CloseModal" style="display: @(IsVisible ? "block" : "none")">
+    <div class="modal fade @(IsVisible ? "show d-block" : "d-none")" tabindex="-1" role="dialog">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@Title</h5>
+                    <button type="button" class="btn-close" @onclick="CloseModal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (Data is not null)
+                    {
+                        @foreach (var card in Data)
+                        {
+                            <div class="card">
+                                <h6>@card.Name - $@card.Price</h6>
+                                <a target="_blank" href="@card.CardURL">
+                                    <img src="@card.ImageURL" alt="@card.Name" />
+                                </a>
+                                <button class="btn btn-primary" @onclick="() => AddCard(card)">Add</button>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p>Loading...</p>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseModal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Modal Title";
+    [Parameter] public List<Card> Data { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback<Card> OnAction { get; set; }
+    public bool IsVisible { get; private set; }
+
+    public void ShowModal()
+    {
+        IsVisible = true;
+        StateHasChanged();
+    }
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+    private async Task AddCard(Card card)
+    {
+        if (OnAction.HasDelegate)
+        {
+            await OnAction.InvokeAsync(card);
+            await CloseModal();
+        }
+    }
+}

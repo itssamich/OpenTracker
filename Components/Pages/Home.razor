@@ -1,11 +1,13 @@
 ﻿@page "/"
 @using Microsoft.EntityFrameworkCore
+@using OpenTracker.Components.Shared
 @using OpenTracker.Data
 @using OpenTracker.Data.Models
 @using OpenTracker.Data.Services
 @using System.Security.Claims
 @inject Scryfall Scryfall
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
+@inject NavigationManager nav
 @inject IJSRuntime JS
 
 
@@ -18,7 +20,7 @@
 
 
 
-<div class="SessionContainer container">
+<div class="SessionContainer">
     <div class="SessionOptions">
         @if (ActiveUser is not null)
         {
@@ -56,15 +58,13 @@
             @if(CardsInSession is not null){
                 @foreach (var card in CardsInSession)
                 {
-                    <div class="card" onclick="">
+                    <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true">
                         <h5>@card.Key.Name - $@card.Key.Price</h5>
-                        <a target="_blank" href="@card.Key.CardURL">
-                            <img src="@card.Key.ImageURL" alt="@card.Key.Name" />
-                        </a>
+                        <img src="@card.Key.ImageURL" alt="@card.Key.Name" />
                         <div class="cardQuantity" style="display: flex; flex-wrap: wrap; gap: 10px">
-                            <button class="btn btn-danger" @onclick="() => SubtractCardToSession(card.Key)">-</button>
+                            @* <button class="btn btn-danger" @onclick="() => SubtractCardToSession(card.Key)">-</button> *@
                             <h6>@card.Value</h6>
-                            <button class="btn btn-success" @onclick="() => AddCardToSession(card.Key)">+</button>
+                            @* <button class="btn btn-success" @onclick="() => AddCardToSession(card.Key)">+</button> *@
                         </div>
                     </div>
                 }
@@ -74,7 +74,7 @@
     }
 </div>
 
-<div class="CardViewer">
+@* <div class="CardViewer">
     @if(ReturnedCards is not null){
         @foreach (var card in ReturnedCards)
         {
@@ -87,7 +87,9 @@
             </div>
         }
     }
-</div>
+</div> *@
+
+<Modal @ref="modal" Title="@ModalTitle" Data="@ReturnedCards" OnAction="AddCardToSession" OnClose="HandleModalClose" />
 
 @code {
     public string TextInput { get; set; }
@@ -97,6 +99,12 @@
     public bool SessionActive { get; set; }
     public Session ActiveSession { get; set; }
     private ApplicationUser ActiveUser { get; set; }
+
+    private Modal? modal;
+    private string ModalTitle;
+
+    // private bool IsSingleClick { get; set; } = false;
+    // private string LastAction = "None";
 
     /// <summary>
     /// A list of all CardSessions for the current ActiveSession
@@ -145,7 +153,12 @@
 
     private async Task SearchCards()
     {
-        //TODO: If only one card is returned, add it to the session
+        if (TextInput == "")
+        {
+            await JS.InvokeVoidAsync("alert", "Please enter a valid search");
+            return; 
+        }
+
 
         ReturnedCards = await Scryfall.SearchForCardAsync(TextInput);
 
@@ -155,6 +168,10 @@
         else if(ReturnedCards.Count == 1){
             AddCardToSession(ReturnedCards.First());
         }
+        else{
+            ModalTitle = $"Keyword search: {TextInput}";
+            modal?.ShowModal();
+        }
 
         //TODO: Clear the search bar
 
@@ -163,13 +180,29 @@
 
     }
 
+    private Task HandleModalClose()
+    {
+        Console.WriteLine("Modal closed.");
+        return Task.CompletedTask;
+    }
+
+
     private async void AddCardToSession(Card card)
     {
-
+        // Used for if I decide to add a double click feature to the cards as AddCardToSession is the default onclick event and I don't need it activating twice
+        //IsSingleClick = true;
+        //await Task.Delay(200); // Delay to determine if a double-click follows
+        //
+        // if (IsSingleClick)
+        // {
+        //      LastAction = "Single Click";
+        //      IsSingleClick = false;
+        // }
         using var context = await DbContextFactory.CreateDbContextAsync();
 
         int quantity = 0;
-        if (CardsInSession.TryGetValue(card, out quantity)){
+        if (CardsInSession.TryGetValue(card, out quantity))
+        {
             var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
             ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
 
@@ -180,12 +213,14 @@
             context.Update(cardSession);
             context.Update(ActiveSession);
         }
-        else{
-            CardSession NewCardSession = new CardSession(){
-                CardId = card.CardId,
-                CardQuantity = 1,
-                SessionId = ActiveSession.SessionId
-            };
+        else
+        {
+            CardSession NewCardSession = new CardSession()
+                {
+                    CardId = card.CardId,
+                    CardQuantity = 1,
+                    SessionId = ActiveSession.SessionId
+                };
 
 
             ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
@@ -202,16 +237,26 @@
         ReturnedCards = null;
         StateHasChanged();
 
+
     }
 
-    private async void SubtractCardToSession(Card card){
+    private async void SubtractCardToSession(Card card, MouseEventArgs e){
+
+
+        //await JS.InvokeVoidAsync("window.preventContextMenu", e);
         int quantity = 0;
         using var context = await DbContextFactory.CreateDbContextAsync();
         if (CardsInSession.TryGetValue(card, out quantity))
         {
-            ActiveSession.TotalPrice -= card.Price.Value >= 0 ? card.Price.Value : 0;
+            
             var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
             if(quantity <= 1){
+                bool confirm;
+
+                confirm = await JS.InvokeAsync<bool>("confirm", "This will remove the card, are you sure?");
+                if(!confirm){
+                    return;
+                }
                 context.CardSessions.Remove(cardSession);
                 CardSessionUnion.Remove(cardSession);
                 CardsInSession.Remove(cardSession.Card);
@@ -221,6 +266,7 @@
                 CardsInSession[card] -= 1;
                 context.Update(cardSession);
             }
+            ActiveSession.TotalPrice -= card.Price.Value >= 0 ? card.Price.Value : 0;
             context.Update(ActiveSession);
             await context.SaveChangesAsync();
             StateHasChanged();
@@ -302,4 +348,13 @@
         }
 
     }
+
+    // private async void DoubleClickFunction(string cardURL){
+    //     //TODO: Change this to do something like show alternate versions of a card in the session
+
+    //     //this goes on the card -------------> @ondblclick="() => DoubleClickFunction(card.Key.CardURL)"
+    //     IsSingleClick = false; // Cancel single-click behavior
+    //     LastAction = "Double Click";
+    //     await JS.InvokeVoidAsync("open", cardURL, "_blank");
+    // }
 }
