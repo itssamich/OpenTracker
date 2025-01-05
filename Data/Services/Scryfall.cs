@@ -68,48 +68,51 @@ namespace OpenTracker.Data.Services
                 {
                     foreach (JsonElement card in dataArray.EnumerateArray())
                     {
-                        if (card.GetProperty("type_line").GetString().Contains("//")){
-                            //TODO: This is a flipcard catch, I only want to show the front side
+                        String ImgURL = "";
+                        if (!card.TryGetProperty("image_uris", out JsonElement imgurl))
+                        {
+                            ImgURL = card.GetProperty("card_faces")[0].GetProperty("image_uris").GetProperty("small").ToString();
+
                         }
                         else
                         {
-                            Card NewCard = new Card
-                            {
-                                Name = card.GetProperty("name").GetString(),
-                                OracleId = card.GetProperty("oracle_id").GetString(),
-                                SetName = card.GetProperty("set").GetString(),
-                                SetNumber = int.TryParse(card.GetProperty("collector_number").ToString(), out int setNum) ? setNum : 000,
-                                ImageURL = card.GetProperty("image_uris").GetProperty("small").GetString(),
-                                CardURL = card.GetProperty("scryfall_uri").GetString(),
-                                Price = Decimal.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out Decimal value) ? value : 0,
-                                LastUpdated = DateTime.Now,
-                                DateCreated = DateTime.Now
-                            };
-
-
-                            Card ExistingCard;
-
-                            ExistingCard = await dbContext.Cards.Where(c => c.OracleId == NewCard.OracleId && c.SetNumber == NewCard.SetNumber).FirstOrDefaultAsync();
-
-                            if (ExistingCard is not null)
-                            {
-                                if (ExistingCard.LastUpdated < DateTime.Now.AddDays(-14))
-                                {
-                                    ExistingCard.Price = NewCard.Price;
-                                    ExistingCard.LastUpdated = DateTime.Now;
-                                    dbContext.Update(ExistingCard);
-                                }
-                                ReturnedCards.Add(ExistingCard);
-                            }
-                            else
-                            {
-                                dbContext.Cards.Add(NewCard);
-                                ReturnedCards.Add(NewCard);
-                            }
-
-                            await dbContext.SaveChangesAsync();
+                            ImgURL = card.GetProperty("image_uris").GetProperty("small").GetString();
                         }
-                        
+                        Card NewCard = new Card
+                        {
+                            Name = card.GetProperty("name").GetString(),
+                            OracleId = card.GetProperty("oracle_id").GetString(),
+                            SetName = card.GetProperty("set").GetString(),
+                            SetNumber = int.TryParse(card.GetProperty("collector_number").ToString(), out int setNum) ? setNum : 000,
+                            ImageURL = ImgURL,
+                            CardURL = card.GetProperty("scryfall_uri").GetString(),
+                            Price = Decimal.TryParse(card.GetProperty("prices").GetProperty("usd").GetString(), out Decimal value) ? value : 0,
+                            LastUpdated = DateTime.Now,
+                            DateCreated = DateTime.Now
+                        };
+
+
+                        Card ExistingCard;
+
+                        ExistingCard = await dbContext.Cards.Where(c => c.OracleId == NewCard.OracleId && c.SetNumber == NewCard.SetNumber).FirstOrDefaultAsync();
+
+                        if (ExistingCard is not null)
+                        {
+                            if (ExistingCard.LastUpdated < DateTime.Now.AddDays(-14))
+                            {
+                                ExistingCard.Price = NewCard.Price;
+                                ExistingCard.LastUpdated = DateTime.Now;
+                                dbContext.Update(ExistingCard);
+                            }
+                            ReturnedCards.Add(ExistingCard);
+                        }
+                        else
+                        {
+                            dbContext.Cards.Add(NewCard);
+                            ReturnedCards.Add(NewCard);
+                        }
+
+                        await dbContext.SaveChangesAsync();
                     }
                 }
                 else
