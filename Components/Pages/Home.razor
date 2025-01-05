@@ -57,17 +57,33 @@
             </form>
 
         </div>
-        <div class="CardContainer" style="display: flex; flex-wrap: wrap; gap: 10px">
+        <div class="CardContainer">
             @if(CardsInSession is not null){
                 @foreach (var card in CardsInSession)
                 {
-                    <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true">
-                        <h5>@card.Key.Name - $@card.Key.Price</h5>
-                        <img src="@card.Key.ImageURL" alt="@card.Key.Name" />
-                        <div class="cardQuantity" style="display: flex; flex-wrap: wrap; gap: 10px">
-                            @* <button class="btn btn-danger" @onclick="() => SubtractCardToSession(card.Key)">-</button> *@
-                            <h6>@card.Value</h6>
-                            @* <button class="btn btn-success" @onclick="() => AddCardToSession(card.Key)">+</button> *@
+                    <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
+                        <div class="CardHeader">
+                            <h4>@card.Key.Name</h4>
+                        </div>
+                        <div class="CardBody">
+                            <span class="CardDetails">
+                                <div class="cardPrice">
+                                    $@card.Key.Price
+                                </div>
+                                <div class="cardQuantity">
+                                    Qty:@card.Value
+                                </div>
+                            </span>
+                            <img src="@card.Key.ImageURL" alt="@card.Key.Name" style="border-radius: 5px"/>
+                            <span class="CardDetails">
+                                <div class="CardSet">
+                                    @card.Key.SetName.ToUpper() - @card.Key.SetNumber
+                                </div>
+                                <div class="CardVersions">
+                                    <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
+                                </div>
+
+                            </span>
                         </div>
                     </div>
                 }
@@ -100,6 +116,8 @@
     Dictionary<Card, int> CardsInSession { get; set; }
     List<Session> UserSessions { get; set; }
     public bool SessionActive { get; set; }
+    public bool IsArtSearching { get; set; } = false;
+    private Card SelectedCard { get; set; }
     public Session ActiveSession { get; set; }
     private ApplicationUser ActiveUser { get; set; }
 
@@ -154,6 +172,12 @@
 
     }
 
+    private Task HandleModalClose()
+    {
+        Console.WriteLine("Modal closed.");
+        return Task.CompletedTask;
+    }
+
     private async Task SearchCards()
     {
         if (TextInput == "")
@@ -183,11 +207,27 @@
 
     }
 
-    private Task HandleModalClose()
-    {
-        Console.WriteLine("Modal closed.");
-        return Task.CompletedTask;
+    private async Task GetAllVersionsOfCard(Card Card){
+
+        ReturnedCards = await Scryfall.SearchForCardAsync(Card.Name, "@@");
+
+        if (ReturnedCards.Count == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "No cards with that name found");
+        }
+        else if (ReturnedCards.Count == 1)
+        {
+            await JS.InvokeVoidAsync("alert", "No other versions of card");
+        }
+        else
+        {
+            ModalTitle = $"Artwork search: {Card.Name}";
+            modal?.ShowModal();
+            SelectedCard = Card;
+        }
     }
+
+
 
 
     private async void AddCardToSession(Card card)
@@ -201,41 +241,130 @@
         //      LastAction = "Single Click";
         //      IsSingleClick = false;
         // }
+
         using var context = await DbContextFactory.CreateDbContextAsync();
 
-        int quantity = 0;
-        if (CardsInSession.TryGetValue(card, out quantity))
+
+        var DictTemp = CardsInSession.Where(c => c.Key.CardId == card.CardId).FirstOrDefault();
+
+        if (DictTemp.Key is not null)
         {
-            var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
-            ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
+            if (SelectedCard is not null)
+            {
+                //Grab CardSession that contains the card that had the button pressed on
 
-            cardSession.CardQuantity += 1;
+                //Session of card getting replaced
+                var selectedSession = await context.CardSessions.Where(c => c.CardId == SelectedCard.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).Include(s => s.Session).FirstOrDefaultAsync();
 
-            CardsInSession[card] += 1;
+                //Session of card staying
+                var existingSession = await context.CardSessions.Where(c => c.CardId == card.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).Include(s => s.Session).FirstOrDefaultAsync();
 
-            context.Update(cardSession);
-            context.Update(ActiveSession);
+                //Update session total by removing all old quantities of old card and adding the old quantities of new card
+                existingSession.Session.TotalPrice -= (SelectedCard.Price.Value * selectedSession.CardQuantity);
+                existingSession.Session.TotalPrice += (card.Price.Value * selectedSession.CardQuantity);
+                existingSession.LastUpdated = DateTime.Now;
+
+                ActiveSession.TotalPrice = existingSession.Session.TotalPrice;
+                ActiveSession.LastUpdated = DateTime.Now;
+
+                //update new quantities by adding old quantities to new session
+                existingSession.CardQuantity += selectedSession.CardQuantity;
+                //CardsInSession[card] += selectedSession.CardQuantity;
+                CardsInSession.Remove(selectedSession.Card);
+                CardsInSession[DictTemp.Key] = existingSession.CardQuantity;
+
+                //remove old session
+                CardSessionUnion.Remove(selectedSession);
+                CardsInSession.Remove(SelectedCard);
+                context.Remove(selectedSession);
+
+
+                //Update local CardSession holder
+                var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
+                cardSession.CardQuantity = existingSession.CardQuantity;
+
+                context.Update(existingSession);
+            }
+            else{
+                var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
+                ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
+                ActiveSession.LastUpdated = DateTime.Now;
+
+                cardSession.CardQuantity += 1;
+                cardSession.LastUpdated = DateTime.Now;
+
+                CardsInSession.Remove(DictTemp.Key);
+                CardsInSession[DictTemp.Key] = cardSession.CardQuantity;
+
+                context.Update(cardSession);
+            }
         }
         else
         {
-            CardSession NewCardSession = new CardSession()
-                {
-                    CardId = card.CardId,
-                    CardQuantity = 1,
-                    SessionId = ActiveSession.SessionId
-                };
+            if (SelectedCard is not null)
+            {
+
+                //Grab CardSession that contains the card that had the button pressed on
+                var selectedSession = await context.CardSessions.Where(c => c.CardId == SelectedCard.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).FirstOrDefaultAsync();
 
 
-            ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
-            context.Update(ActiveSession);
-            context.CardSessions.Add(NewCardSession);
 
-            NewCardSession.Card = card;
+                //Update session locally by swapping the card value in the session
+                var index = CardSessionUnion.FindIndex(c => c.CardId == SelectedCard.CardId);
 
-            CardSessionUnion.Add(NewCardSession);
-            CardsInSession.Add(card, 1);
+                CardSessionUnion[index].CardId = card.CardId;
+                CardSessionUnion[index].Card = card;
+
+
+                //Update card dictionary
+                var valueHolder = CardsInSession[SelectedCard];
+                CardsInSession.Remove(SelectedCard);
+                CardsInSession[card] = valueHolder;
+
+
+                //Swap which card is in the session
+                selectedSession.Card = card;
+                selectedSession.LastUpdated = DateTime.Now;
+
+                //Update session total price
+                var temp = ActiveSession.TotalPrice;
+                temp -= (SelectedCard.Price.Value * selectedSession.CardQuantity);
+                temp += (card.Price.Value * selectedSession.CardQuantity);
+
+                ActiveSession.TotalPrice = temp;
+                ActiveSession.LastUpdated = DateTime.Now;
+
+                selectedSession.LastUpdated = DateTime.Now;
+                context.Update(selectedSession);
+            }
+            else{
+                CardSession NewCardSession = new CardSession()
+                    {
+                        CardId = card.CardId,
+                        CardQuantity = 1,
+                        SessionId = ActiveSession.SessionId,
+                        LastUpdated = DateTime.Now,
+                        DateCreated = DateTime.Now
+                    };
+
+
+                ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
+                ActiveSession.LastUpdated = DateTime.Now;   
+                context.CardSessions.Add(NewCardSession);
+
+                NewCardSession.Card = card;
+
+                CardSessionUnion.Add(NewCardSession);
+                CardsInSession.Add(card, 1);
+
+            }
+
+
+
         }
 
+        context.Update(ActiveSession);
+        SelectedCard = null;
         await context.SaveChangesAsync();
         ReturnedCards = null;
         StateHasChanged();

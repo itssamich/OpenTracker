@@ -7,6 +7,7 @@ using OpenTracker.Data.Models;
 using System.Numerics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Internal;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 
 
@@ -24,7 +25,7 @@ namespace OpenTracker.Data.Services
             _context = context;
         }
 
-        public async Task<List<Card>> SearchForCardAsync(string query)
+        public async Task<List<Card>> SearchForCardAsync(string query, string optional = "")
         {
             
             //TODO: Check to see if requested card already exists in "cached" database and the time since last updated is greater than a week
@@ -47,7 +48,7 @@ namespace OpenTracker.Data.Services
 
             //To find all artworks of a specific card change the q=name to q=@@name
             //to find all versions of a speicifc card change teh q=name to q=++name
-            var baseURL = $"https://api.scryfall.com/cards/search?q=name%3A{query}";
+            var baseURL = $"https://api.scryfall.com/cards/search?q={optional}name%3A{query}";
 
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("OpenTracker/1.0");
             _httpClient.DefaultRequestHeaders.Accept.ParseAdd("*/*");
@@ -88,7 +89,7 @@ namespace OpenTracker.Data.Services
 
                             Card ExistingCard;
 
-                            ExistingCard = await dbContext.Cards.Where(c => c.OracleId == NewCard.OracleId).FirstOrDefaultAsync();
+                            ExistingCard = await dbContext.Cards.Where(c => c.OracleId == NewCard.OracleId && c.SetNumber == NewCard.SetNumber).FirstOrDefaultAsync();
 
                             if (ExistingCard is not null)
                             {

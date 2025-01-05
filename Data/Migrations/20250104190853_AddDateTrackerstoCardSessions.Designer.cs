@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OpenTracker.Data;
 
@@ -10,9 +11,11 @@ using OpenTracker.Data;
 namespace OpenTracker.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250104190853_AddDateTrackerstoCardSessions")]
+    partial class AddDateTrackerstoCardSessions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.0");
@@ -263,12 +266,11 @@ namespace OpenTracker.Migrations
 
             modelBuilder.Entity("OpenTracker.Data.Models.CardSession", b =>
                 {
-                    b.Property<int>("CardSessionId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
                     b.Property<int>("CardId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("SessionId")
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("CardQuantity")
                         .HasColumnType("INTEGER");
@@ -279,12 +281,7 @@ namespace OpenTracker.Migrations
                     b.Property<DateTime>("LastUpdated")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("SessionId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("CardSessionId");
-
-                    b.HasIndex("CardId");
+                    b.HasKey("CardId", "SessionId");
 
                     b.HasIndex("SessionId");
 
