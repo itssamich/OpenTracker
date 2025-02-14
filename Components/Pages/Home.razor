@@ -49,7 +49,7 @@
 
 
     @if (ActiveSession is not null){
-        <h3>@ActiveSession.SessionName - $@ActiveSession.TotalPrice</h3>
+        <h3>@ActiveSession.SessionName - $@ActiveSession.TotalPrice - @CardsInSession.Count</h3>
         <div>
             <form @onsubmit="SearchCards" @onsubmit:preventDefault="true">
                 <InputText class="form-control" @bind-Value="TextInput"></InputText>
@@ -57,6 +57,27 @@
             </form>
 
         </div>
+        <hr />
+
+        <div class="subMenu">
+            <div class="sortButtons">
+                <button @onclick='() => SortSession("Price")' class="btn btn-primary">
+                    Sort by Price (@(currentSortProperty == "Price" ? (isAscending ? "▲" : "▼") : "▼"))
+                </button>
+
+                <button @onclick='() => SortSession("DateAdded")' class="btn btn-secondary">
+                    Sort by Date Added (@(currentSortProperty == "DateAdded" ? (isAscending ? "▲" : "▼") : "▼"))
+                </button>
+
+                <button @onclick='() => SortSession("LastUpdated")' class="btn btn-secondary">
+                    Sort by Last Updated (@(currentSortProperty == "LastUpdated" ? (isAscending ? "▲" : "▼") : "▼"))
+                </button>
+            </div>
+            <div class="setMenu">
+                <InputText class="form-control" @bind-Value="SetInput"></InputText>
+            </div>
+        </div>
+
         <div class="CardContainer">
             @if(CardsInSession is not null){
                 @foreach (var card in CardsInSession)
@@ -82,7 +103,6 @@
                                 <div class="CardVersions">
                                     <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
                                 </div>
-
                             </span>
                         </div>
                     </div>
@@ -121,8 +141,14 @@
     public Session ActiveSession { get; set; }
     private ApplicationUser ActiveUser { get; set; }
 
+    private string currentSortProperty = "DateAdded";
+
+    private bool isAscending = true;
+
     private Modal? modal;
     private string ModalTitle;
+
+    private string SetInput { get; set; } = "";
 
     // private bool IsSingleClick { get; set; } = false;
     // private string LastAction = "None";
@@ -187,7 +213,7 @@
         }
 
 
-        ReturnedCards = await Scryfall.SearchForCardAsync(TextInput);
+        ReturnedCards = await Scryfall.SearchForCardAsync(TextInput, "" ,SetInput == "" ? "" : SetInput);
 
         if(ReturnedCards.Count == 0){
             await JS.InvokeVoidAsync("alert", "No cards with that name found");
@@ -209,7 +235,7 @@
 
     private async Task GetAllVersionsOfCard(Card Card){
 
-        ReturnedCards = await Scryfall.SearchForCardAsync(Card.Name, "@@");
+        ReturnedCards = await Scryfall.SearchForCardAsync(Card.Name, "@@", SetInput == "" ? "" : SetInput);
 
         if (ReturnedCards.Count == 0)
         {
@@ -380,7 +406,7 @@
         using var context = await DbContextFactory.CreateDbContextAsync();
         if (CardsInSession.TryGetValue(card, out quantity))
         {
-            
+
             var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
             if(quantity <= 1){
                 bool confirm;
@@ -479,6 +505,51 @@
             CardsInSession.Add(card.Card, card.CardQuantity);
         }
 
+    }
+
+    private async void SortSession(String SortType){
+        var tempDict = CardSessionUnion.ToDictionary(x => x.Card, x => x);
+
+        if (SortType != currentSortProperty)
+        {
+            currentSortProperty = SortType;
+            isAscending = false;
+        }
+        else{
+            isAscending = !isAscending;
+        }
+        switch(SortType){
+            case "Price":
+                currentSortProperty = "Price";
+                if (isAscending)
+                {
+                    CardsInSession = CardsInSession.OrderBy(x => x.Key.Price).ToDictionary(x => x.Key, x => x.Value);
+                }
+                else
+                {
+                    CardsInSession = CardsInSession.OrderByDescending(x => x.Key.Price).ToDictionary(x => x.Key, x => x.Value);
+                }
+                return;
+            case "DateAdded":
+                currentSortProperty = "DateAdded";
+                
+                break;
+            case "LastUpdated":
+                currentSortProperty = "LastUpdated";
+                break;
+        }
+
+        CardsInSession = isAscending ? CardsInSession.OrderBy(x => GetSortValue(tempDict[x.Key], currentSortProperty)).ToDictionary(x => x.Key, x => x.Value) : CardsInSession.OrderByDescending(x => GetSortValue(tempDict[x.Key], currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+    }
+
+    private object GetSortValue(CardSession cardSession, string sortProperty)
+    {
+        return sortProperty switch
+        {
+            "LastUpdated" => cardSession.LastUpdated,
+            "DateAdded" => cardSession.DateCreated,
+            _ => cardSession.DateCreated // Default case
+        };
     }
 
     // private async void DoubleClickFunction(string cardURL){

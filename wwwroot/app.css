@@ -138,3 +138,10 @@ h1:focus {
     align-items: center;
     width: 100%;
 }
+
+.subMenu {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}

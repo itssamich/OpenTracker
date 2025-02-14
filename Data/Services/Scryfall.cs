@@ -25,7 +25,7 @@ namespace OpenTracker.Data.Services
             _context = context;
         }
 
-        public async Task<List<Card>> SearchForCardAsync(string query, string optional = "")
+        public async Task<List<Card>> SearchForCardAsync(string query, string optional = "", string set = "")
         {
             
             //TODO: Check to see if requested card already exists in "cached" database and the time since last updated is greater than a week
@@ -47,8 +47,10 @@ namespace OpenTracker.Data.Services
 
 
             //To find all artworks of a specific card change the q=name to q=@@name
-            //to find all versions of a speicifc card change teh q=name to q=++name
-            var baseURL = $"https://api.scryfall.com/cards/search?q={optional}name%3A{query}";
+            //to find all versions of a speicifc card change the q=name to q=++name
+            //To restrict search to only a specific set, change the query to q=set%3A{setcode}+name%3A{query}
+            var baseURL = $"https://api.scryfall.com/cards/search?q={optional}{(set == "" ? "" : $"set%3A{set}+")}name%3A{query}";
+
 
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("OpenTracker/1.0");
             _httpClient.DefaultRequestHeaders.Accept.ParseAdd("*/*");
