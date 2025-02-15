@@ -518,8 +518,8 @@
         await context.SaveChangesAsync();
         ReturnedCards = null;
         StateHasChanged();
-
-
+        await JS.InvokeVoidAsync("scrollToBottom", "div.CardContainer");
+        //await JS.InvokeVoidAsync("test");
     }
 
     private async void SubtractCardToSession(Card card, MouseEventArgs e){
@@ -642,9 +642,9 @@
         SetInput = sessionset;
 
         ActiveSession.SavedSessionSet = sessionset;
-
         context.Update(ActiveSession);
-
+        await context.SaveChangesAsync();
+       
         StateHasChanged();
     }
 

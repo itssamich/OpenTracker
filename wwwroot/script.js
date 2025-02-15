@@ -1,3 +1,0 @@
-﻿window.reloadPage = () => {
-    location.reload();
-};
