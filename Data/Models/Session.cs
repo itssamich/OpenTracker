@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Runtime.InteropServices;
 
 namespace OpenTracker.Data.Models
 {
@@ -15,6 +16,8 @@ namespace OpenTracker.Data.Models
         [Precision(8, 2)]
         public decimal TotalPrice { get; set; } = 0;
 
+        [MaxLength(3)]
+        public string? SavedSessionSet { get; set; }
 
         [ForeignKey(nameof(ApplicationUser))]
         public required string SessionOwnerId { get; set; }

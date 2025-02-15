@@ -145,3 +145,62 @@ h1:focus {
     align-items: center;
     width: 100%;
 }
+
+.setMenu {
+    display: flex;
+    justify-content: space-between
+}
+
+.setModeCheckContainer {
+    display: inline-flex;
+    align-items: center;
+    padding: 0px 15px 0px 15px;
+
+
+}
+
+.SessionHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center
+}
+
+i {
+    text-align: center
+}
+
+.SessionHeaderIconContainer {
+    color: dimgrey;
+    font-size: 1.5em
+}
+
+.SessionSettingIcon {
+    transition: transform .7s ease-in-out;
+}
+
+.SessionSettingIcon:hover {
+    transform: rotate(360deg);
+    cursor: pointer;
+}
+
+.SessionReportIcon {
+    padding-right: 15px;
+    padding-left: 15px;
+    text-decoration: none;
+}
+
+.SessionReportIcon:hover {
+    cursor: pointer;
+}
+
+.SessionDeleteIcon{
+    color: darkred
+}
+
+.SessionDeleteIcon:hover{
+    cursor: pointer
+}
+
+.MainSearchContainer{
+    
+}

@@ -25,35 +25,52 @@
         @if (ActiveUser is not null)
         {
             <button class="btn btn-primary" @onclick="CreateSession">New Session</button>
-
-            @if (ActiveSession is not null)
-            {
-                <a href="/report/{@ActiveSession.SessionId}" class="btn btn-primary" target="_blank">Generate Report</a>
-                <button class="btn btn-danger" @onclick="DeleteSession">Delete Session</button>
-            }
         }
-        <br />
+        <hr />
         @if (UserSessions is not null)
         {
             <div class="SessionList">
-                <ul>
+                @*                 <ul>
                     @foreach (var session in UserSessions)
                     {
                         <li class="btn btn-primary" @onclick="() => ChangeSession(session)">@session.SessionName</li>
                     }
-                </ul>
-
+                </ul> *@
+                @*<InputSelect class="form-select" @bind-Value="SelectedSessionId" @onchange="HandleChange"> @*ChangeSession(SelectedSessionId)*@
+                <InputSelect class="form-select" Value="SelectedSessionId" ValueExpression="@(() => SelectedSessionId)" ValueChanged="@((e) => HandleChange(e))" TValue="Guid">
+                    <option disabled hidden selected value="@Guid.Empty">Select Session...</option>
+                    @foreach (var session in UserSessions)
+                    {
+                        <option value="@session.SessionId">@session.SessionName</option>
+                    }
+                </InputSelect>
             </div>
         }
     </div>
 
+    <br />
 
     @if (ActiveSession is not null){
-        <h3>@ActiveSession.SessionName - $@ActiveSession.TotalPrice - @CardsInSession.Count</h3>
+        <div class="SessionHeader">
+            <h3>@ActiveSession.SessionName | Total Price: $@ActiveSession.TotalPrice | Unique Cards: @CardsInSession.Count </h3>
+            <div class="SessionHeaderIconContainer">
+                <i class="fa-regular fa-trash-can SessionDeleteIcon" @onclick="DeleteSession"></i>
+                <a href="/report/{@ActiveSession.SessionId}" target="_blank"><i class="fa-regular fa-file-lines SessionReportIcon" title="Generate Report"></i></a>
+                <i class="fa-solid fa-gear SessionSettingIcon" @onclick="OpenSessionSettings" title="Settings"></i>
+            </div>
+        </div>
         <div>
-            <form @onsubmit="SearchCards" @onsubmit:preventDefault="true">
-                <InputText class="form-control" @bind-Value="TextInput"></InputText>
-                <button type="submit">Search</button>
+            <form @onsubmit="SearchCards" @onsubmit:preventDefault="true" class="MainSearchContainer">
+                <div class="InputContainer">
+                    @if (SetNumberMode == false)
+                    {
+                        <InputText class="form-control" @bind-Value="TextInput"></InputText>
+                    }
+                    else
+                    {
+                        <InputNumber class="form-control" @bind-Value="NumberInput"></InputNumber>
+                    }
+                </div>
             </form>
 
         </div>
@@ -61,52 +78,102 @@
 
         <div class="subMenu">
             <div class="sortButtons">
-                <button @onclick='() => SortSession("Price")' class="btn btn-primary">
-                    Sort by Price (@(currentSortProperty == "Price" ? (isAscending ? "▲" : "▼") : "▼"))
+                <button @onclick='() => SortSession("Price")' class="btn @(currentSortProperty == "Price" ? "btn-primary" : "btn-secondary")">
+                    Price $ (@(currentSortProperty == "Price" ? (isAscending ? "▲" : "▼") : "▼"))
                 </button>
 
-                <button @onclick='() => SortSession("DateAdded")' class="btn btn-secondary">
-                    Sort by Date Added (@(currentSortProperty == "DateAdded" ? (isAscending ? "▲" : "▼") : "▼"))
+                <button @onclick='() => SortSession("DateAdded")' class="btn @(currentSortProperty == "DateAdded" ? "btn-primary" : "btn-secondary")">
+                    Date Added (@(currentSortProperty == "DateAdded" ? (isAscending ? "▲" : "▼") : "▼"))
                 </button>
 
-                <button @onclick='() => SortSession("LastUpdated")' class="btn btn-secondary">
-                    Sort by Last Updated (@(currentSortProperty == "LastUpdated" ? (isAscending ? "▲" : "▼") : "▼"))
+                <button @onclick='() => SortSession("LastUpdated")' class="btn @(currentSortProperty == "LastUpdated" ? "btn-primary" : "btn-secondary")">
+                    Last Updated (@(currentSortProperty == "LastUpdated" ? (isAscending ? "▲" : "▼") : "▼"))
                 </button>
+
+                <button @onclick='() => SortSession("Name")' class="btn @(currentSortProperty == "Name" ? "btn-primary" : "btn-secondary")">
+                    Name (@(currentSortProperty == "Name" ? (isAscending ? "▲" : "▼") : "▼"))
+                </button>
+
+                <button @onclick='() => SortSession("SetNumber")' class="btn @(currentSortProperty == "SetNumber" ? "btn-primary" : "btn-secondary")">
+                    Set Number (@(currentSortProperty == "SetNumber" ? (isAscending ? "▲" : "▼") : "▼"))
+                </button>
+            </div>
+            <div class="searchBarContainer">
+                @*  <InputText class="form-control" Value="SearchInput" ValueExpression="@(() => SearchInput)" ValueChanged="@((e) => HandleSearch(e))" TValue="String" placeholder="Search for Card"/> *@
+                <InputText class="form-control" @bind-Value="SearchInput" @oninput="HandleSearch" placeholder="Search for Card"></InputText>
             </div>
             <div class="setMenu">
-                <InputText class="form-control" @bind-Value="SetInput"></InputText>
+                <div class="setOptions">
+                    <InputText class="form-control" @bind-Value="SetInput" placeholder="Set Trigram" maxlength="3"></InputText>
+                </div>
+                <div class="setModeCheckContainer">
+                    <label for="setModeCheck">Set Mode: </label>
+                    <InputCheckbox class="form-check" @bind-Value="SetNumberMode" name="setModeCheck" id="setModeCheck"></InputCheckbox>
+                </div>
             </div>
         </div>
-
+        <hr />
         <div class="CardContainer">
             @if(CardsInSession is not null){
-                @foreach (var card in CardsInSession)
-                {
-                    <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
-                        <div class="CardHeader">
-                            <h4>@card.Key.Name</h4>
+                if(isFiltered && FilteredCardsInSession is not null){
+                    @foreach (var card in FilteredCardsInSession)
+                    {
+                        <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
+                            <div class="CardHeader">
+                                <h4>@card.Key.Name</h4>
+                            </div>
+                            <div class="CardBody">
+                                <span class="CardDetails">
+                                    <div class="cardPrice">
+                                        $@card.Key.Price
+                                    </div>
+                                    <div class="cardQuantity">
+                                        Qty:@card.Value
+                                    </div>
+                                </span>
+                                <img src="@card.Key.ImageURL" alt="@card.Key.Name" style="border-radius: 5px" />
+                                <span class="CardDetails">
+                                    <div class="CardSet">
+                                        @card.Key.SetName.ToUpper() - @card.Key.SetNumber
+                                    </div>
+                                    <div class="CardVersions">
+                                        <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
+                                    </div>
+                                </span>
+                            </div>
                         </div>
-                        <div class="CardBody">
-                            <span class="CardDetails">
-                                <div class="cardPrice">
-                                    $@card.Key.Price
-                                </div>
-                                <div class="cardQuantity">
-                                    Qty:@card.Value
-                                </div>
-                            </span>
-                            <img src="@card.Key.ImageURL" alt="@card.Key.Name" style="border-radius: 5px"/>
-                            <span class="CardDetails">
-                                <div class="CardSet">
-                                    @card.Key.SetName.ToUpper() - @card.Key.SetNumber
-                                </div>
-                                <div class="CardVersions">
-                                    <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
-                                </div>
-                            </span>
-                        </div>
-                    </div>
+                    }
                 }
+                else{
+                    @foreach (var card in CardsInSession)
+                    {
+                        <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
+                            <div class="CardHeader">
+                                <h4>@card.Key.Name</h4>
+                            </div>
+                            <div class="CardBody">
+                                <span class="CardDetails">
+                                    <div class="cardPrice">
+                                        $@card.Key.Price
+                                    </div>
+                                    <div class="cardQuantity">
+                                        Qty:@card.Value
+                                    </div>
+                                </span>
+                                <img src="@card.Key.ImageURL" alt="@card.Key.Name" style="border-radius: 5px" />
+                                <span class="CardDetails">
+                                    <div class="CardSet">
+                                        @card.Key.SetName.ToUpper() - @card.Key.SetNumber
+                                    </div>
+                                    <div class="CardVersions">
+                                        <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
+                                    </div>
+                                </span>
+                            </div>
+                        </div>
+                    }
+                }
+
             }
         </div>
 
@@ -131,24 +198,36 @@
 <Modal @ref="modal" Title="@ModalTitle" Data="@ReturnedCards" OnAction="AddCardToSession" OnClose="HandleModalClose" />
 
 @code {
-    public string TextInput { get; set; }
+
+
     List<Card> ReturnedCards { get; set; }
     Dictionary<Card, int> CardsInSession { get; set; }
+    Dictionary<Card, int> FilteredCardsInSession { get; set; }
+
     List<Session> UserSessions { get; set; }
     public bool SessionActive { get; set; }
     public bool IsArtSearching { get; set; } = false;
     private Card SelectedCard { get; set; }
     public Session ActiveSession { get; set; }
     private ApplicationUser ActiveUser { get; set; }
+    private Guid SelectedSessionId { get; set; }
 
     private string currentSortProperty = "DateAdded";
 
     private bool isAscending = true;
+    private bool isFiltered = false;
+
 
     private Modal? modal;
     private string ModalTitle;
 
+
+    //Search related variables
+    private string SearchInput { get; set; } = "";
+    public string TextInput { get; set; }
+    private int NumberInput { get; set; }
     private string SetInput { get; set; } = "";
+    private bool SetNumberMode { get; set; } = false;
 
     // private bool IsSingleClick { get; set; } = false;
     // private string LastAction = "None";
@@ -174,7 +253,7 @@
 
             if(ActiveUser is not null){
                 //TODO: Find most recent session and check if it has a closed date, if not then set it as ActiveSession
-                UserSessions = await context.Sessions.Where(u => u.SessionOwnerId == ActiveUser.Id).OrderBy(s => s.LastUpdated).ToListAsync();
+                UserSessions = await context.Sessions.Where(u => u.SessionOwnerId == ActiveUser.Id).OrderByDescending(s => s.LastUpdated).ToListAsync();
                 // if (UserSessions is not null)
                 // {
                 //     bool MessagePrompt;
@@ -198,6 +277,33 @@
 
     }
 
+    private async void HandleChange(Guid session)
+    {
+
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        SelectedSessionId = session;
+        var NewSession = await context.Sessions.Where(s => s.SessionId == session).FirstOrDefaultAsync();
+        ChangeSession(NewSession);
+
+    }
+
+    private async void HandleSearch(ChangeEventArgs e)
+    {
+        var search = e.Value?.ToString() ?? "";
+        if(search.Length < 3){
+            isFiltered = false;
+            return;
+        }
+
+        //var query = $"%{search}%";
+        FilteredCardsInSession = CardsInSession.Where(c => c.Key.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToDictionary(x => x.Key, x => x.Value);
+
+        if(FilteredCardsInSession.Count > 0){
+            isFiltered = true;
+        }
+
+    }
+
     private Task HandleModalClose()
     {
         Console.WriteLine("Modal closed.");
@@ -206,14 +312,31 @@
 
     private async Task SearchCards()
     {
-        if (TextInput == "")
+        var Query = "";
+        if (TextInput == "" && NumberInput == 0)
         {
             await JS.InvokeVoidAsync("alert", "Please enter a valid search");
             return; 
         }
 
+        if(SetNumberMode){
+            if (SetInput == "")
+            {
+                await JS.InvokeVoidAsync("alert", "Please enter a set number");
+                return;
+            }
+            else{
+                Query = "cn%3A" + NumberInput;
+            }
 
-        ReturnedCards = await Scryfall.SearchForCardAsync(TextInput, "" ,SetInput == "" ? "" : SetInput);
+        }
+        else
+        {
+            Query = "name%3A" + TextInput;
+        }
+
+
+        ReturnedCards = await Scryfall.SearchForCardAsync(Query, "", SetInput == "" ? "" : SetInput);
 
         if(ReturnedCards.Count == 0){
             await JS.InvokeVoidAsync("alert", "No cards with that name found");
@@ -229,6 +352,7 @@
         //TODO: Clear the search bar
 
         TextInput = "";
+        NumberInput = 0;
         StateHasChanged();
 
     }
@@ -461,7 +585,7 @@
             //TODO: Figure out if I want to piggy back off of ActiveSession to store the current session. Probably do, not many reasons not to but...
             UserSessions.Add(NewSession);
             ChangeSession(NewSession);
-
+            SelectedSessionId = NewSession.SessionId;
             StateHasChanged();
         }
     }
@@ -475,28 +599,87 @@
 
             if(DeleteSession){
                 using var context = await DbContextFactory.CreateDbContextAsync();
+                var sessiontodelete = UserSessions.FirstOrDefault(x => x.SessionId == ActiveSession.SessionId);
 
-                UserSessions.Remove(ActiveSession);
+                if(sessiontodelete is not null){
+                    UserSessions.Remove(sessiontodelete);
+
+                }
 
                 context.Remove(ActiveSession);
 
                 await context.SaveChangesAsync();
 
                 ActiveSession = null;
+                SelectedSessionId = Guid.Empty;
 
                 StateHasChanged();
             }
         }
     }
 
+    private async void OpenSessionSettings(){
+        using var context = await DbContextFactory.CreateDbContextAsync();
+        //For now this is all the settings but there can/will be more
+        var sessionset = SetInput == "" ? "" : SetInput;
+
+        sessionset = await JS.InvokeAsync<String>("prompt", "Default Set for Session", sessionset);
+
+        if (sessionset is null || sessionset == "")
+        {
+            return;
+        }
+
+        while(sessionset.Length != 3){
+            sessionset = await JS.InvokeAsync<String>("prompt", "Sets must use 3 letter format (i.e. ONE)", sessionset);
+
+            if (sessionset is null || sessionset == "")
+            {
+                return;
+            }
+        }
+
+        SetInput = sessionset;
+
+        ActiveSession.SavedSessionSet = sessionset;
+
+        context.Update(ActiveSession);
+
+        StateHasChanged();
+    }
+
+
     private async void ChangeSession(Session session)
     {
+        if(session is null){
+            nav.NavigateTo(nav.Uri, forceLoad: true);
+            return;
+        }
+        
         using var context = await DbContextFactory.CreateDbContextAsync();
+
         if(ActiveSession is not null && ActiveSession.SessionId == session.SessionId){
             ActiveSession = null;
             return;
         }
         ActiveSession = session;
+
+        try{
+            if (ActiveSession.SavedSessionSet is not null && ActiveSession.SavedSessionSet != "")
+            {
+                SetInput = ActiveSession.SavedSessionSet;
+            }
+            else
+            {
+                SetInput = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", "Womp womp? {ex.Message}");
+            nav.NavigateTo(nav.Uri, forceLoad: true);
+            return;
+        }
 
         CardSessionUnion = await context.CardSessions.Where(s => s.SessionId == session.SessionId).Include(c => c.Card).ToListAsync();
         CardsInSession = new Dictionary<Card, int>();
@@ -521,18 +704,26 @@
         switch(SortType){
             case "Price":
                 currentSortProperty = "Price";
+                SimpleSort();
+                return;
+            case "Name":
+                currentSortProperty = "Name";
+                SimpleSort();
+                return;
+            case "SetNumber":
+                currentSortProperty = "SetNumber";
                 if (isAscending)
                 {
-                    CardsInSession = CardsInSession.OrderBy(x => x.Key.Price).ToDictionary(x => x.Key, x => x.Value);
+                    CardsInSession = CardsInSession.OrderBy(x => x.Key.SetName).ThenBy(y => y.Key.SetNumber).ToDictionary(x => x.Key, x => x.Value);
                 }
                 else
                 {
-                    CardsInSession = CardsInSession.OrderByDescending(x => x.Key.Price).ToDictionary(x => x.Key, x => x.Value);
+                    CardsInSession = CardsInSession.OrderBy(x => x.Key.SetName).ThenByDescending(y => y.Key.SetNumber).ToDictionary(x => x.Key, x => x.Value);
                 }
                 return;
             case "DateAdded":
                 currentSortProperty = "DateAdded";
-                
+
                 break;
             case "LastUpdated":
                 currentSortProperty = "LastUpdated";
@@ -540,6 +731,31 @@
         }
 
         CardsInSession = isAscending ? CardsInSession.OrderBy(x => GetSortValue(tempDict[x.Key], currentSortProperty)).ToDictionary(x => x.Key, x => x.Value) : CardsInSession.OrderByDescending(x => GetSortValue(tempDict[x.Key], currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+    }
+
+    /// <summary>
+    /// A function that dynamically grabs a value from an object based on a string property name
+    /// </summary>
+    /// <param name="obj">Current Card</param>
+    /// <param name="propertyName"> Property Name to return value of</param>
+    /// <returns></returns>
+    public object? GetPropertyValue(object obj, string propertyName)
+    {
+        return obj?.GetType().GetProperty(propertyName)?.GetValue(obj);
+    }
+
+    /// <summary>
+    /// A function that simply sorts based on a singe layer deep property (i.e. Price and Name)
+    /// </summary>
+    public void SimpleSort(){
+        if (isAscending)
+        {
+            CardsInSession = CardsInSession.OrderBy(x => GetPropertyValue(x.Key, currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+        }
+        else
+        {
+            CardsInSession = CardsInSession.OrderByDescending(x => GetPropertyValue(x.Key, currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+        }
     }
 
     private object GetSortValue(CardSession cardSession, string sortProperty)

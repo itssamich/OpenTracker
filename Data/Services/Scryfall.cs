@@ -49,7 +49,8 @@ namespace OpenTracker.Data.Services
             //To find all artworks of a specific card change the q=name to q=@@name
             //to find all versions of a speicifc card change the q=name to q=++name
             //To restrict search to only a specific set, change the query to q=set%3A{setcode}+name%3A{query}
-            var baseURL = $"https://api.scryfall.com/cards/search?q={optional}{(set == "" ? "" : $"set%3A{set}+")}name%3A{query}";
+            //To search for a specific card in a set using the card number, changea the query to  q=set%3A{setcode}+cn%3A{number}
+            var baseURL = $"https://api.scryfall.com/cards/search?q={optional}{(set == "" ? "" : $"set%3A{set}+")}{query}";
 
 
             _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("OpenTracker/1.0");
