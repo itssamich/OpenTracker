@@ -118,26 +118,26 @@
                 if(isFiltered && FilteredCardsInSession is not null){
                     @foreach (var card in FilteredCardsInSession)
                     {
-                        <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
+                        <div class="card" @onclick="() => AddCardToSession(card.Card)" @oncontextmenu="(e) => SubtractCardToSession(card.Card, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
                             <div class="CardHeader">
-                                <h4>@card.Key.Name</h4>
+                                <h4>@card.Card.Name</h4>
                             </div>
                             <div class="CardBody">
                                 <span class="CardDetails">
                                     <div class="cardPrice">
-                                        $@card.Key.Price
+                                        $@card.Card.Price
                                     </div>
                                     <div class="cardQuantity">
-                                        Qty:@card.Value
+                                        Qty:@card.CardQuantity
                                     </div>
                                 </span>
-                                <img src="@card.Key.ImageURL" alt="@card.Key.Name" style="border-radius: 5px" />
+                                <img src="@card.Card.ImageURL" alt="@card.Card.Name" style="border-radius: 5px" />
                                 <span class="CardDetails">
                                     <div class="CardSet">
-                                        @card.Key.SetName.ToUpper() - @card.Key.SetNumber
+                                        @card.Card.SetName.ToUpper() - @card.Card.SetNumber
                                     </div>
                                     <div class="CardVersions">
-                                        <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
+                                        <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Card)" @onclick:stopPropagation="true">?</span>
                                     </div>
                                 </span>
                             </div>
@@ -147,26 +147,26 @@
                 else{
                     @foreach (var card in CardsInSession)
                     {
-                        <div class="card" @onclick="() => AddCardToSession(card.Key)" @oncontextmenu="(e) => SubtractCardToSession(card.Key, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
+                        <div class="card" @onclick="() => AddCardToSession(card.Card)" @oncontextmenu="(e) => SubtractCardToSession(card.Card, e)" @oncontextmenu:preventDefault="true" style="cursor: pointer">
                             <div class="CardHeader">
-                                <h4>@card.Key.Name</h4>
+                                <h4>@card.Card.Name</h4>
                             </div>
                             <div class="CardBody">
                                 <span class="CardDetails">
                                     <div class="cardPrice">
-                                        $@card.Key.Price
+                                        $@card.Card.Price
                                     </div>
                                     <div class="cardQuantity">
-                                        Qty:@card.Value
+                                        Qty:@card.CardQuantity
                                     </div>
                                 </span>
-                                <img src="@card.Key.ImageURL" alt="@card.Key.Name" style="border-radius: 5px" />
+                                <img src="@card.Card.ImageURL" alt="@card.Card.Name" style="border-radius: 5px" />
                                 <span class="CardDetails">
                                     <div class="CardSet">
-                                        @card.Key.SetName.ToUpper() - @card.Key.SetNumber
+                                        @card.Card.SetName.ToUpper() - @card.Card.SetNumber
                                     </div>
                                     <div class="CardVersions">
-                                        <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Key)" @onclick:stopPropagation="true">?</span>
+                                        <span class="btn btn-outline-dark" @onclick="() => GetAllVersionsOfCard(card.Card)" @onclick:stopPropagation="true">?</span>
                                     </div>
                                 </span>
                             </div>
@@ -198,11 +198,13 @@
 <Modal @ref="modal" Title="@ModalTitle" Data="@ReturnedCards" OnAction="AddCardToSession" OnClose="HandleModalClose" />
 
 @code {
-
-
     List<Card> ReturnedCards { get; set; }
-    Dictionary<Card, int> CardsInSession { get; set; }
-    Dictionary<Card, int> FilteredCardsInSession { get; set; }
+
+
+    // Dictionary<Card, int> CardsInSession { get; set; }
+    // Dictionary<Card, int> FilteredCardsInSession { get; set; }
+
+
 
     List<Session> UserSessions { get; set; }
     public bool SessionActive { get; set; }
@@ -235,7 +237,9 @@
     /// <summary>
     /// A list of all CardSessions for the current ActiveSession
     /// </summary>
-    List<CardSession> CardSessionUnion = new List<CardSession>();
+    //List<CardSession> CardSessionUnion = new List<CardSession>();
+    List<CardSession> CardsInSession = new List<CardSession>();
+    List<CardSession> FilteredCardsInSession = new List<CardSession>();
 
     [CascadingParameter]
     private Task<AuthenticationState>? authenticationState { get; set; }
@@ -296,7 +300,7 @@
         }
 
         //var query = $"%{search}%";
-        FilteredCardsInSession = CardsInSession.Where(c => c.Key.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToDictionary(x => x.Key, x => x.Value);
+        FilteredCardsInSession = CardsInSession.Where(c => c.Card.Name.Contains(search, StringComparison.OrdinalIgnoreCase)).ToList();
 
         if(FilteredCardsInSession.Count > 0){
             isFiltered = true;
@@ -394,20 +398,22 @@
 
         using var context = await DbContextFactory.CreateDbContextAsync();
 
-
-        var DictTemp = CardsInSession.Where(c => c.Key.CardId == card.CardId).FirstOrDefault();
-
-        if (DictTemp.Key is not null)
+        if (CardsInSession.Any(c => c.Card==card))
         {
             if (SelectedCard is not null)
             {
                 //Grab CardSession that contains the card that had the button pressed on
 
                 //Session of card getting replaced
-                var selectedSession = await context.CardSessions.Where(c => c.CardId == SelectedCard.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).Include(s => s.Session).FirstOrDefaultAsync();
+                var selectedSession = CardsInSession.Where(c => c.CardId == SelectedCard.CardId).FirstOrDefault();
+                //await context.CardSessions.Where(c => c.CardId == SelectedCard.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).Include(s => s.Session).FirstOrDefaultAsync();
 
                 //Session of card staying
-                var existingSession = await context.CardSessions.Where(c => c.CardId == card.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).Include(s => s.Session).FirstOrDefaultAsync();
+                var existingSession = CardsInSession.Where(c => c.CardId == card.CardId).FirstOrDefault();
+                //await context.CardSessions.Where(c => c.CardId == card.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).Include(s => s.Session).FirstOrDefaultAsync();
+
+
+
 
                 //Update session total by removing all old quantities of old card and adding the old quantities of new card
                 existingSession.Session.TotalPrice -= (SelectedCard.Price.Value * selectedSession.CardQuantity);
@@ -420,31 +426,26 @@
                 //update new quantities by adding old quantities to new session
                 existingSession.CardQuantity += selectedSession.CardQuantity;
                 //CardsInSession[card] += selectedSession.CardQuantity;
-                CardsInSession.Remove(selectedSession.Card);
-                CardsInSession[DictTemp.Key] = existingSession.CardQuantity;
+                CardsInSession.Remove(selectedSession);
+                CardsInSession.Where(c => c.Card == card).First().CardQuantity = existingSession.CardQuantity;
 
                 //remove old session
-                CardSessionUnion.Remove(selectedSession);
-                CardsInSession.Remove(SelectedCard);
+                CardsInSession.Remove(selectedSession);
                 context.Remove(selectedSession);
 
-
-                //Update local CardSession holder
-                var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
-                cardSession.CardQuantity = existingSession.CardQuantity;
 
                 context.Update(existingSession);
             }
             else{
-                var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
+                var cardSession = CardsInSession.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
                 ActiveSession.TotalPrice += card.Price.Value >= 0 ? card.Price.Value : 0;
                 ActiveSession.LastUpdated = DateTime.Now;
 
                 cardSession.CardQuantity += 1;
                 cardSession.LastUpdated = DateTime.Now;
 
-                CardsInSession.Remove(DictTemp.Key);
-                CardsInSession[DictTemp.Key] = cardSession.CardQuantity;
+                //CardsInSession.Remove(CardsInSession.Where(c => c.Card == card).First());
+                //CardsInSession.Where(c => c.Card == card).First().CardQuantity = cardSession.CardQuantity;
 
                 context.Update(cardSession);
             }
@@ -455,22 +456,10 @@
             {
 
                 //Grab CardSession that contains the card that had the button pressed on
-                var selectedSession = await context.CardSessions.Where(c => c.CardId == SelectedCard.CardId && c.SessionId == ActiveSession.SessionId).Include(c => c.Card).FirstOrDefaultAsync();
+                var selectedSession = CardsInSession.Where(c => c.CardId == SelectedCard.CardId && c.SessionId == ActiveSession.SessionId).FirstOrDefault();
 
 
-
-                //Update session locally by swapping the card value in the session
-                var index = CardSessionUnion.FindIndex(c => c.CardId == SelectedCard.CardId);
-
-                CardSessionUnion[index].CardId = card.CardId;
-                CardSessionUnion[index].Card = card;
-
-
-                //Update card dictionary
-                var valueHolder = CardsInSession[SelectedCard];
-                CardsInSession.Remove(SelectedCard);
-                CardsInSession[card] = valueHolder;
-
+                //locally swap the cards to force page state to change
 
                 //Swap which card is in the session
                 selectedSession.Card = card;
@@ -504,8 +493,7 @@
 
                 NewCardSession.Card = card;
 
-                CardSessionUnion.Add(NewCardSession);
-                CardsInSession.Add(card, 1);
+                CardsInSession.Insert(0, NewCardSession);
 
             }
 
@@ -526,13 +514,15 @@
 
 
         //await JS.InvokeVoidAsync("window.preventContextMenu", e);
-        int quantity = 0;
         using var context = await DbContextFactory.CreateDbContextAsync();
-        if (CardsInSession.TryGetValue(card, out quantity))
+
+
+        //Check if the card is in the session and if it is remove it
+        if (CardsInSession.Any(c => c.Card == card))
         {
 
-            var cardSession = CardSessionUnion.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
-            if(quantity <= 1){
+            var cardSession = CardsInSession.Where(c => c.Card.CardId == card.CardId).FirstOrDefault();
+            if(cardSession.CardQuantity <= 1){
                 bool confirm;
 
                 confirm = await JS.InvokeAsync<bool>("confirm", "This will remove the card, are you sure?");
@@ -540,12 +530,11 @@
                     return;
                 }
                 context.CardSessions.Remove(cardSession);
-                CardSessionUnion.Remove(cardSession);
-                CardsInSession.Remove(cardSession.Card);
+                CardsInSession.Remove(cardSession);
             }
             else{
                 cardSession.CardQuantity -= 1;
-                CardsInSession[card] -= 1;
+                //CardsInSession.Where(c => c.Card == card).First().CardQuantity -= 1;
                 context.Update(cardSession);
             }
             ActiveSession.TotalPrice -= card.Price.Value >= 0 ? card.Price.Value : 0;
@@ -681,18 +670,11 @@
             return;
         }
 
-        CardSessionUnion = await context.CardSessions.Where(s => s.SessionId == session.SessionId).Include(c => c.Card).ToListAsync();
-        CardsInSession = new Dictionary<Card, int>();
-        foreach (var card in CardSessionUnion)
-        {
-            CardsInSession.Add(card.Card, card.CardQuantity);
-        }
+        CardsInSession = await context.CardSessions.Where(s => s.SessionId == session.SessionId).Include(c => c.Card).ToListAsync();
 
     }
 
     private async void SortSession(String SortType){
-        var tempDict = CardSessionUnion.ToDictionary(x => x.Card, x => x);
-
         if (SortType != currentSortProperty)
         {
             currentSortProperty = SortType;
@@ -714,11 +696,11 @@
                 currentSortProperty = "SetNumber";
                 if (isAscending)
                 {
-                    CardsInSession = CardsInSession.OrderBy(x => x.Key.SetName).ThenBy(y => y.Key.SetNumber).ToDictionary(x => x.Key, x => x.Value);
+                    CardsInSession = CardsInSession.OrderBy(x => x.Card.SetName).ThenBy(y => y.Card.SetNumber).ToList();
                 }
                 else
                 {
-                    CardsInSession = CardsInSession.OrderBy(x => x.Key.SetName).ThenByDescending(y => y.Key.SetNumber).ToDictionary(x => x.Key, x => x.Value);
+                    CardsInSession = CardsInSession.OrderBy(x => x.Card.SetName).ThenByDescending(y => y.Card.SetNumber).ToList();
                 }
                 return;
             case "DateAdded":
@@ -730,7 +712,7 @@
                 break;
         }
 
-        CardsInSession = isAscending ? CardsInSession.OrderBy(x => GetSortValue(tempDict[x.Key], currentSortProperty)).ToDictionary(x => x.Key, x => x.Value) : CardsInSession.OrderByDescending(x => GetSortValue(tempDict[x.Key], currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+        CardsInSession = isAscending ? CardsInSession.OrderBy(x => GetSortValue(x, currentSortProperty)).ToList() : CardsInSession.OrderByDescending(x => GetSortValue(x, currentSortProperty)).ToList();
     }
 
     /// <summary>
@@ -750,11 +732,11 @@
     public void SimpleSort(){
         if (isAscending)
         {
-            CardsInSession = CardsInSession.OrderBy(x => GetPropertyValue(x.Key, currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+            CardsInSession = CardsInSession.OrderBy(x => GetPropertyValue(x.Card, currentSortProperty)).ToList();
         }
         else
         {
-            CardsInSession = CardsInSession.OrderByDescending(x => GetPropertyValue(x.Key, currentSortProperty)).ToDictionary(x => x.Key, x => x.Value);
+            CardsInSession = CardsInSession.OrderByDescending(x => GetPropertyValue(x.Card, currentSortProperty)).ToList();
         }
     }
 
@@ -771,7 +753,7 @@
     // private async void DoubleClickFunction(string cardURL){
     //     //TODO: Change this to do something like show alternate versions of a card in the session
 
-    //     //this goes on the card -------------> @ondblclick="() => DoubleClickFunction(card.Key.CardURL)"
+    //     //this goes on the card -------------> @ondblclick="() => DoubleClickFunction(card.Card.CardURL)"
     //     IsSingleClick = false; // Cancel single-click behavior
     //     LastAction = "Double Click";
     //     await JS.InvokeVoidAsync("open", cardURL, "_blank");
