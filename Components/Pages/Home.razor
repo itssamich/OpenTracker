@@ -6,6 +6,7 @@
 @using OpenTracker.Data.Services
 @using System.Security.Claims
 @inject Scryfall Scryfall
+@inject CSVDocument CSVDocument
 @inject IDbContextFactory<ApplicationDbContext> DbContextFactory
 @inject NavigationManager nav
 @inject IJSRuntime JS
@@ -55,6 +56,7 @@
             <h3>@ActiveSession.SessionName | Total Price: $@ActiveSession.TotalPrice | Unique Cards: @CardsInSession.Count </h3>
             <div class="SessionHeaderIconContainer">
                 <i class="fa-regular fa-trash-can SessionDeleteIcon" @onclick="DeleteSession"></i>
+                <i class="fa-regular fa-file-lines SessionReportIcon" title="Generate Report" @onclick="@(() => CSVDocument.GenerateAndDownloadCsvAsync(ActiveSession.SessionId))"></i>
                 <a href="/report/{@ActiveSession.SessionId}" target="_blank"><i class="fa-regular fa-file-lines SessionReportIcon" title="Generate Report"></i></a>
                 <i class="fa-solid fa-gear SessionSettingIcon" @onclick="OpenSessionSettings" title="Settings"></i>
             </div>
@@ -398,7 +400,7 @@
 
         using var context = await DbContextFactory.CreateDbContextAsync();
 
-        if (CardsInSession.Any(c => c.Card==card))
+        if (CardsInSession.Any(c => c.Card.CardId ==card.CardId))
         {
             if (SelectedCard is not null)
             {
@@ -670,7 +672,7 @@
             return;
         }
 
-        CardsInSession = await context.CardSessions.Where(s => s.SessionId == session.SessionId).Include(c => c.Card).ToListAsync();
+        CardsInSession = await context.CardSessions.Where(s => s.SessionId == session.SessionId).Include(c => c.Card).OrderByDescending(c => c.LastUpdated).ToListAsync();
 
     }
 
